@@ -491,6 +491,55 @@
       font-weight: 500;
     }
 
+    .player-roster {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+    }
+
+    .player-roster-item {
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+      transition: background 0.15s;
+    }
+
+    .player-roster-item:last-child {
+      border-bottom: none;
+    }
+
+    .player-roster-item:hover {
+      background: var(--surface-hover);
+    }
+
+    .player-roster-item.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .player-roster-item.disabled:hover {
+      background: transparent;
+    }
+
+    .player-roster-name {
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+
+    .player-roster-salary {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
     .ntc-badge, .restriction-badge {
       font-size: 0.5625rem;
       padding: 0.125rem 0.3rem;
@@ -896,14 +945,22 @@
               `).join('')}
               
               ${tradeTeam.teamName ? `
-                <div class="add-player-container">
-                  <input 
-                    type="text" 
-                    class="add-player-input" 
-                    placeholder="Add player..."
-                    data-team="${index}"
-                  >
-                  <div class="player-dropdown" data-team="${index}"></div>
+                <div class="player-roster" data-team="${index}">
+                  ${getTeamPlayers(tradeTeam.teamName)
+                    .sort((a, b) => b.salary - a.salary)
+                    .map(p => {
+                      const isAdded = tradeTeam.playersOut.some(po => po.player === p.player);
+                      return `
+                        <div class="player-roster-item ${isAdded ? 'disabled' : ''}" data-team="${index}" data-player="${p.player}" ${isAdded ? 'data-disabled="true"' : ''}>
+                          <span class="player-roster-name">
+                            ${p.player}
+                            ${p.noTradeClause ? '<span class="ntc-badge">NTC</span>' : ''}
+                            ${p.tradeAvailable ? '<span class="restriction-badge">!</span>' : ''}
+                          </span>
+                          <span class="player-roster-salary">${formatSalary(p.salary)}</span>
+                        </div>
+                      `;
+                    }).join('')}
                 </div>
               ` : ''}
             </div>
@@ -1059,66 +1116,31 @@
         });
       }
 
-      // Player search inputs
-      document.querySelectorAll('.add-player-input').forEach(input => {
-        const teamIndex = parseInt(input.dataset.team);
-        const dropdown = document.querySelector(`.player-dropdown[data-team="${teamIndex}"]`);
-        
-        input.addEventListener('input', (e) => {
-          const query = e.target.value.toLowerCase();
-          if (query.length < 2) {
-            dropdown.classList.remove('active');
-            return;
-          }
-
+      // Player roster click
+      document.querySelectorAll('.player-roster-item').forEach(item => {
+        item.addEventListener('click', () => {
+          if (item.dataset.disabled === 'true') return;
+          
+          const teamIndex = parseInt(item.dataset.team);
+          const playerName = item.dataset.player;
           const teamName = tradeTeams[teamIndex].teamName;
           const teamPlayers = getTeamPlayers(teamName);
-          const alreadyAdded = tradeTeams[teamIndex].playersOut.map(p => p.player);
+          const player = teamPlayers.find(p => p.player === playerName);
           
-          const matches = teamPlayers
-            .filter(p => p.player.toLowerCase().includes(query))
-            .filter(p => !alreadyAdded.includes(p.player))
-            .slice(0, 8);
-
-          if (matches.length === 0) {
-            dropdown.classList.remove('active');
-            return;
+          if (player) {
+            // Create a copy of the player with destination property
+            const playerWithDest = { ...player };
+            
+            // Auto-assign destination for 2-team trades
+            const otherTeams = getOtherActiveTeams(teamIndex);
+            if (otherTeams.length === 1) {
+              playerWithDest.destination = otherTeams[0].index;
+            }
+            
+            tradeTeams[teamIndex].playersOut.push(playerWithDest);
+            redistributePlayers();
+            render();
           }
-
-          dropdown.innerHTML = matches.map(p => `
-            <div class="player-dropdown-item" data-player="${p.player}">
-              <span>${p.player}</span>
-              <span class="player-dropdown-item-salary">${formatSalary(p.salary)}</span>
-            </div>
-          `).join('');
-
-          dropdown.classList.add('active');
-
-          // Attach click listeners to dropdown items
-          dropdown.querySelectorAll('.player-dropdown-item').forEach(item => {
-            item.addEventListener('click', () => {
-              const playerName = item.dataset.player;
-              const player = teamPlayers.find(p => p.player === playerName);
-              if (player) {
-                // Create a copy of the player with destination property
-                const playerWithDest = { ...player };
-                
-                // Auto-assign destination for 2-team trades
-                const otherTeams = getOtherActiveTeams(teamIndex);
-                if (otherTeams.length === 1) {
-                  playerWithDest.destination = otherTeams[0].index;
-                }
-                
-                tradeTeams[teamIndex].playersOut.push(playerWithDest);
-                redistributePlayers();
-                render();
-              }
-            });
-          });
-        });
-
-        input.addEventListener('blur', () => {
-          setTimeout(() => dropdown.classList.remove('active'), 200);
         });
       });
     }
