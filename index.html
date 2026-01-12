@@ -692,7 +692,19 @@
       }
 
       // Check salary matching
-      const maxIncoming = getMaxIncoming(teamInfo.status, outgoingSalary, teamInfo.capSpace);
+      let maxIncoming;
+      if (teamInfo.status === 'Cap Space') {
+        // Cap Space teams can absorb up to their cap space + any outgoing salary
+        maxIncoming = teamInfo.capSpace + outgoingSalary;
+      } else if (teamInfo.status === '2nd Apron') {
+        maxIncoming = outgoingSalary + 250000;
+      } else if (teamInfo.status === '1st Apron') {
+        maxIncoming = outgoingSalary * 1.1 + 250000;
+      } else {
+        // Below Tax or Tax Team
+        maxIncoming = outgoingSalary * 1.75 + 250000;
+      }
+
       if (incomingSalary > maxIncoming) {
         const deficit = incomingSalary - maxIncoming;
         return { 
