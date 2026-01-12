@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NBA Trade Calculator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0b;
+      --surface: #141416;
+      --surface-hover: #1a1a1d;
+      --border: #2a2a2e;
+      --text: #f5f5f7;
+      --text-secondary: #8e8e93;
+      --accent: #3b82f6;
+      --accent-dim: rgba(59, 130, 246, 0.15);
+      --green: #34c759;
+      --orange: #ff9f0a;
+      --red: #ff453a;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+    }
+
+    header {
+      margin-bottom: 3rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+    }
+
+    .search-section {
+      margin-bottom: 2.5rem;
+    }
+
+    .search-container {
+      position: relative;
+      max-width: 480px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 1rem 1.25rem;
+      font-size: 1rem;
+      font-family: inherit;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-secondary);
+    }
+
+    .autocomplete-list {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-height: 320px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+    }
+
+    .autocomplete-list.active {
+      display: block;
+    }
+
+    .autocomplete-item {
+      padding: 0.875rem 1.25rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+
+    .autocomplete-item:last-child {
+      border-bottom: none;
+    }
+
+    .autocomplete-item:hover,
+    .autocomplete-item.selected {
+      background: var(--surface-hover);
+    }
+
+    .autocomplete-item .player-name {
+      font-weight: 500;
+    }
+
+    .autocomplete-item .player-team {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+    }
+
+    .selected-player {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2.5rem;
+      display: none;
+    }
+
+    .selected-player.active {
+      display: block;
+    }
+
+    .selected-player-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+
+    .selected-player-name {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .selected-player-team {
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+
+    .clear-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .clear-btn:hover {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+
+    .selected-player-details {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .detail-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+    }
+
+    .detail-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.125rem;
+      font-weight: 500;
+    }
+
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .results-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+
+    .results-count {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+    }
+
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .results-table th {
+      text-align: left;
+      padding: 1rem 1.25rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    .results-table td {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .results-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .results-table tbody tr {
+      transition: background 0.15s;
+    }
+
+    .results-table tbody tr:hover {
+      background: var(--surface-hover);
+    }
+
+    .player-cell {
+      font-weight: 500;
+    }
+
+    .salary-cell {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9375rem;
+    }
+
+    .rating-cell {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9375rem;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .availability-cell {
+      font-size: 0.875rem;
+    }
+
+    .availability-note {
+      color: var(--orange);
+    }
+
+    .available-now {
+      color: var(--green);
+    }
+
+    .not-available-warning {
+      background: rgba(255, 69, 58, 0.1);
+      border: 1px solid rgba(255, 69, 58, 0.3);
+      color: var(--red);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      font-size: 0.875rem;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.625rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .status-cap-space { background: rgba(52, 199, 89, 0.15); color: var(--green); }
+    .status-below-tax { background: rgba(52, 199, 89, 0.15); color: var(--green); }
+    .status-tax-team { background: rgba(255, 159, 10, 0.15); color: var(--orange); }
+    .status-1st-apron { background: rgba(255, 69, 58, 0.15); color: var(--red); }
+    .status-2nd-apron { background: rgba(255, 69, 58, 0.2); color: var(--red); }
+
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-secondary);
+    }
+
+    .empty-state-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-secondary);
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .no-results {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--text-secondary);
+    }
+
+    .sort-btn {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .sort-btn:hover {
+      color: var(--text);
+    }
+
+    .sort-indicator {
+      font-size: 0.625rem;
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        padding: 2rem 1rem;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+
+      .selected-player-details {
+        gap: 1.25rem;
+      }
+
+      .results-table th,
+      .results-table td {
+        padding: 0.875rem 1rem;
+      }
+
+      .detail-value {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>NBA Trade Calculator</h1>
+      <p class="subtitle">Find salary-matching trade options based on CBA rules</p>
+    </header>
+
+    <section class="search-section">
+      <div class="search-container">
+        <input 
+          type="text" 
+          class="search-input" 
+          id="playerSearch" 
+          placeholder="Search for a player..."
+          autocomplete="off"
+        >
+        <div class="autocomplete-list" id="autocompleteList"></div>
+      </div>
+    </section>
+
+    <div class="selected-player" id="selectedPlayer">
+      <div class="selected-player-header">
+        <div>
+          <div class="selected-player-name" id="selectedName"></div>
+          <div class="selected-player-team" id="selectedTeam"></div>
+        </div>
+        <button class="clear-btn" id="clearBtn">Clear</button>
+      </div>
+      <div class="not-available-warning" id="notAvailableWarning" style="display: none;">
+        ⚠️ This player is not available for trade before the trade deadline.
+      </div>
+      <div class="selected-player-details">
+        <div class="detail-item">
+          <span class="detail-label">Salary</span>
+          <span class="detail-value" id="selectedSalary"></span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Team Status</span>
+          <span class="detail-value" id="selectedStatus"></span>
+        </div>
+        <div class="detail-item" id="capSpaceContainer" style="display: none;">
+          <span class="detail-label">Cap Space</span>
+          <span class="detail-value" id="selectedCapSpace"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="resultsSection" style="display: none;">
+      <div class="results-header">
+        <span class="results-title">Available Trade Targets</span>
+        <span class="results-count" id="resultsCount"></span>
+      </div>
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th><button class="sort-btn" data-sort="player">Player <span class="sort-indicator">▼</span></button></th>
+            <th><button class="sort-btn" data-sort="team">Team <span class="sort-indicator">▼</span></button></th>
+            <th><button class="sort-btn" data-sort="rating">Rating <span class="sort-indicator">▼</span></button></th>
+            <th><button class="sort-btn" data-sort="salary">Salary <span class="sort-indicator">▼</span></button></th>
+            <th><button class="sort-btn" data-sort="status">Team Status <span class="sort-indicator">▼</span></button></th>
+            <th>Availability</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="loading" id="loadingState">
+      <div class="spinner"></div>
+      <p>Loading player data...</p>
+    </div>
+
+    <div class="empty-state" id="emptyState" style="display: none;">
+      <div class="empty-state-icon">🏀</div>
+      <p>Search for a player to see available trade options</p>
+    </div>
+
+    <div class="no-results" id="noResults" style="display: none;">
+      <p>No matching trade targets found for this player</p>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script>
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSg6im6IYB6HXMGzQbmmBnLw9SfQLzxCSo8OfChxlJLhsB6BBCO0wPF_TMch0YgAbtFqYkwDWrsxRe7/pub?output=csv';
+
+    let players = [];
+    let selectedPlayer = null;
+    let currentSort = { column: 'rating', direction: 'desc' };
+
+    // DOM Elements
+    const searchInput = document.getElementById('playerSearch');
+    const autocompleteList = document.getElementById('autocompleteList');
+    const selectedPlayerEl = document.getElementById('selectedPlayer');
+    const resultsSection = document.getElementById('resultsSection');
+    const resultsBody = document.getElementById('resultsBody');
+    const resultsCount = document.getElementById('resultsCount');
+    const loadingState = document.getElementById('loadingState');
+    const emptyState = document.getElementById('emptyState');
+    const noResults = document.getElementById('noResults');
+    const clearBtn = document.getElementById('clearBtn');
+
+    // Parse salary string to number
+    function parseSalary(salaryStr) {
+      if (!salaryStr || salaryStr === '') return 0;
+      return parseFloat(salaryStr.toString().replace(/[$,]/g, '')) || 0;
+    }
+
+    // Format number as currency
+    function formatSalary(num) {
+      if (num === 0) return '$0';
+      return '$' + num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+
+    // Get status class for badge
+    function getStatusClass(status) {
+      const statusMap = {
+        'Cap Space': 'status-cap-space',
+        'Below Tax': 'status-below-tax',
+        'Tax Team': 'status-tax-team',
+        '1st Apron': 'status-1st-apron',
+        '2nd Apron': 'status-2nd-apron'
+      };
+      return statusMap[status] || '';
+    }
+
+    // Calculate max incoming salary based on team status and outgoing salary
+    function getMaxIncoming(status, outgoingSalary, capSpace = 0) {
+      if (status === 'Cap Space') {
+        return capSpace + outgoingSalary;
+      } else if (status === '2nd Apron') {
+        return outgoingSalary + 250000;
+      } else if (status === '1st Apron') {
+        return outgoingSalary * 1.1 + 250000;
+      } else {
+        // Below Tax or Tax Team
+        return outgoingSalary * 1.75 + 250000;
+      }
+    }
+
+    // Check if trade is valid both ways
+    function isValidTrade(player1, player2) {
+      // Can't trade with same team
+      if (player1.team === player2.team) return false;
+
+      // Skip players not available before trade deadline
+      if (player2.tradeAvailable.toLowerCase() === 'not available') return false;
+
+      // Get effective salaries (two-way = 0)
+      const salary1 = player1.salary;
+      const salary2 = player2.salary;
+
+      // Team 1 receiving player 2 - check hardcaps (room available)
+      // Net incoming = salary2 - salary1 (what team 1 adds to payroll)
+      const team1NetIncoming = salary2 - salary1;
+      if (player1.hardcap1st > 0 && team1NetIncoming > player1.hardcap1st) return false;
+      if (player1.hardcap2nd > 0 && team1NetIncoming > player1.hardcap2nd) return false;
+
+      // Team 2 receiving player 1 - check hardcaps (room available)
+      // Net incoming = salary1 - salary2 (what team 2 adds to payroll)
+      const team2NetIncoming = salary1 - salary2;
+      if (player2.hardcap1st > 0 && team2NetIncoming > player2.hardcap1st) return false;
+      if (player2.hardcap2nd > 0 && team2NetIncoming > player2.hardcap2nd) return false;
+
+      // Team 1 receiving player 2
+      const team1CanReceive = getMaxIncoming(player1.status, salary1, player1.capSpace);
+      if (salary2 > team1CanReceive) return false;
+
+      // Team 2 receiving player 1
+      const team2CanReceive = getMaxIncoming(player2.status, salary2, player2.capSpace);
+      if (salary1 > team2CanReceive) return false;
+
+      return true;
+    }
+
+    // Find all valid trade targets for a player
+    function findTradeTargets(player) {
+      return players.filter(p => isValidTrade(player, p));
+    }
+
+    // Sort results
+    function sortResults(results, column, direction) {
+      return [...results].sort((a, b) => {
+        let valA, valB;
+        
+        switch (column) {
+          case 'player':
+            valA = a.player.toLowerCase();
+            valB = b.player.toLowerCase();
+            break;
+          case 'team':
+            valA = a.team.toLowerCase();
+            valB = b.team.toLowerCase();
+            break;
+          case 'salary':
+            valA = a.salary;
+            valB = b.salary;
+            break;
+          case 'status':
+            valA = a.status;
+            valB = b.status;
+            break;
+          case 'rating':
+            valA = a.globalRating;
+            valB = b.globalRating;
+            break;
+          default:
+            return 0;
+        }
+
+        if (valA < valB) return direction === 'asc' ? -1 : 1;
+        if (valA > valB) return direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    // Render results table
+    function renderResults(results) {
+      if (results.length === 0) {
+        resultsSection.style.display = 'none';
+        noResults.style.display = 'block';
+        return;
+      }
+
+      noResults.style.display = 'none';
+      resultsSection.style.display = 'block';
+      resultsCount.textContent = `${results.length} player${results.length !== 1 ? 's' : ''}`;
+
+      const sorted = sortResults(results, currentSort.column, currentSort.direction);
+
+      resultsBody.innerHTML = sorted.map(p => `
+        <tr>
+          <td class="player-cell">${p.player}</td>
+          <td>${p.team}</td>
+          <td class="rating-cell">${p.globalRating > 0 ? p.globalRating.toFixed(1) : '-'}</td>
+          <td class="salary-cell">${formatSalary(p.salary)}</td>
+          <td><span class="status-badge ${getStatusClass(p.status)}">${p.status}</span></td>
+          <td class="availability-cell">${p.tradeAvailable ? `<span class="availability-note">Available ${p.tradeAvailable}</span>` : '<span class="available-now">Now</span>'}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Show autocomplete suggestions
+    function showSuggestions(query) {
+      if (!query || query.length < 2) {
+        autocompleteList.classList.remove('active');
+        return;
+      }
+
+      const matches = players
+        .filter(p => p.player.toLowerCase().includes(query.toLowerCase()))
+        .slice(0, 10);
+
+      if (matches.length === 0) {
+        autocompleteList.classList.remove('active');
+        return;
+      }
+
+      autocompleteList.innerHTML = matches.map(p => `
+        <div class="autocomplete-item" data-player="${p.player}">
+          <span class="player-name">${p.player}</span>
+          <span class="player-team">${p.team}</span>
+        </div>
+      `).join('');
+
+      autocompleteList.classList.add('active');
+    }
+
+    // Select a player
+    function selectPlayer(playerName) {
+      const player = players.find(p => p.player === playerName);
+      if (!player) return;
+
+      selectedPlayer = player;
+      searchInput.value = '';
+      autocompleteList.classList.remove('active');
+      emptyState.style.display = 'none';
+
+      // Update selected player display
+      document.getElementById('selectedName').textContent = player.player;
+      document.getElementById('selectedTeam').textContent = player.team;
+      document.getElementById('selectedSalary').textContent = formatSalary(player.salary);
+      document.getElementById('selectedStatus').textContent = player.status;
+
+      const capSpaceContainer = document.getElementById('capSpaceContainer');
+      if (player.status === 'Cap Space' && player.capSpace > 0) {
+        capSpaceContainer.style.display = 'block';
+        document.getElementById('selectedCapSpace').textContent = formatSalary(player.capSpace);
+      } else {
+        capSpaceContainer.style.display = 'none';
+      }
+
+      selectedPlayerEl.classList.add('active');
+
+      // Check if player is not available for trade
+      const notAvailableWarning = document.getElementById('notAvailableWarning');
+      if (player.tradeAvailable.toLowerCase() === 'not available') {
+        notAvailableWarning.style.display = 'block';
+        resultsSection.style.display = 'none';
+        noResults.style.display = 'none';
+        return;
+      } else {
+        notAvailableWarning.style.display = 'none';
+      }
+
+      // Find and display trade targets
+      const targets = findTradeTargets(player);
+      renderResults(targets);
+    }
+
+    // Clear selection
+    function clearSelection() {
+      selectedPlayer = null;
+      selectedPlayerEl.classList.remove('active');
+      resultsSection.style.display = 'none';
+      noResults.style.display = 'none';
+      emptyState.style.display = 'block';
+      searchInput.value = '';
+    }
+
+    // Load data
+    async function loadData() {
+      try {
+        const response = await fetch(CSV_URL);
+        const csvText = await response.text();
+        
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: function(results) {
+            players = results.data
+              .filter(row => row.PLAYER && row.PLAYER.trim())
+              .filter(row => row.TEAM && row.TEAM.trim()) // Exclude players without a team
+              .filter(row => {
+                const status = row['ST 25-26']?.trim() || row['Team Status']?.trim() || '';
+                return !status.toLowerCase().includes('10-day'); // Exclude 10-day contracts
+              })
+              .map(row => ({
+                player: row.PLAYER?.trim() || '',
+                team: row.TEAM?.trim() || '',
+                salary: parseSalary(row['2026']),
+                status: row['ST 25-26']?.trim() || row['Team Status']?.trim() || '',
+                capSpace: parseSalary(row['Cap Space'] || row['H'] || 0),
+                globalRating: parseFloat(row['RAT 365'] || 0) || 0,
+                hardcap1st: parseSalary(row['HARD CAP 1st?'] || 0),
+                hardcap2nd: parseSalary(row['HARD CAP 2nd?'] || 0),
+                tradeAvailable: row['RESTRICTIONS']?.trim() || ''
+              }));
+
+            loadingState.style.display = 'none';
+            emptyState.style.display = 'block';
+          },
+          error: function(error) {
+            console.error('Parse error:', error);
+            loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
+          }
+        });
+      } catch (error) {
+        console.error('Fetch error:', error);
+        loadingState.innerHTML = '<p>Error loading data. Please refresh the page.</p>';
+      }
+    }
+
+    // Event listeners
+    searchInput.addEventListener('input', (e) => {
+      showSuggestions(e.target.value);
+    });
+
+    searchInput.addEventListener('focus', () => {
+      if (searchInput.value.length >= 2) {
+        showSuggestions(searchInput.value);
+      }
+    });
+
+    autocompleteList.addEventListener('click', (e) => {
+      const item = e.target.closest('.autocomplete-item');
+      if (item) {
+        selectPlayer(item.dataset.player);
+      }
+    });
+
+    clearBtn.addEventListener('click', clearSelection);
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.search-container')) {
+        autocompleteList.classList.remove('active');
+      }
+    });
+
+    // Keyboard navigation for autocomplete
+    let selectedIndex = -1;
+    searchInput.addEventListener('keydown', (e) => {
+      const items = autocompleteList.querySelectorAll('.autocomplete-item');
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+        items.forEach((item, i) => item.classList.toggle('selected', i === selectedIndex));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, 0);
+        items.forEach((item, i) => item.classList.toggle('selected', i === selectedIndex));
+      } else if (e.key === 'Enter' && selectedIndex >= 0) {
+        e.preventDefault();
+        selectPlayer(items[selectedIndex].dataset.player);
+        selectedIndex = -1;
+      } else if (e.key === 'Escape') {
+        autocompleteList.classList.remove('active');
+        selectedIndex = -1;
+      }
+    });
+
+    // Sort buttons
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const column = btn.dataset.sort;
+        if (currentSort.column === column) {
+          currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          currentSort.column = column;
+          currentSort.direction = 'desc';
+        }
+        
+        if (selectedPlayer) {
+          const targets = findTradeTargets(selectedPlayer);
+          renderResults(targets);
+        }
+      });
+    });
+
+    // Initialize
+    loadData();
+  </script>
+</body>
+</html>
