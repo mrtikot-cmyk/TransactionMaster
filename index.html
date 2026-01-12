@@ -697,6 +697,12 @@
       };
     }
 
+    // Calculate trade salary (two-way players count as $0)
+    function getTradeSalary(player) {
+      if (player.contractStatus?.toUpperCase() === 'TWO-WAY') return 0;
+      return player.salary;
+    }
+
     // Get trade salary (Two-Way contracts count as $0)
     function getTradeSalary(player) {
       if (player.contractStatus && player.contractStatus.toUpperCase().includes('TWO-WAY')) {
@@ -729,8 +735,8 @@
       const teamInfo = getTeamInfo(tradeTeam.teamName);
       if (!teamInfo) return { valid: false, message: 'Team not found' };
 
-      const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + p.salary, 0);
-      const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + p.salary, 0);
+      const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + getTradeSalary(p), 0);
+      const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + getTradeSalary(p), 0);
       const netIncoming = incomingSalary - outgoingSalary;
 
       // Check hardcap
@@ -877,8 +883,8 @@
         ? validateTeamTrade(tradeTeam) 
         : null;
 
-      const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + p.salary, 0);
-      const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + p.salary, 0);
+      const outgoingSalary = tradeTeam.playersOut.reduce((sum, p) => sum + getTradeSalary(p), 0);
+      const incomingSalary = tradeTeam.playersIn.reduce((sum, p) => sum + getTradeSalary(p), 0);
       const netSalary = incomingSalary - outgoingSalary;
 
       const cardClass = validation ? (validation.valid ? 'valid' : 'invalid') : '';
