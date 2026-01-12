@@ -744,15 +744,21 @@
 
     // Validate entire trade
     function validateTrade() {
-      // Need at least 2 teams with players
-      const activeTeams = tradeTeams.filter(t => t.teamName && t.playersOut.length > 0);
-      if (activeTeams.length < 2) {
-        return { valid: false, message: 'Add players from at least 2 teams', type: 'warning' };
+      // Need at least 2 teams involved (sending or receiving)
+      const teamsWithPlayers = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
+      const teamsSendingPlayers = tradeTeams.filter(t => t.teamName && t.playersOut.length > 0);
+      
+      if (teamsSendingPlayers.length < 1) {
+        return { valid: false, message: 'Add players to trade', type: 'warning' };
+      }
+
+      if (teamsWithPlayers.length < 2) {
+        return { valid: false, message: 'Select destination for players', type: 'warning' };
       }
 
       // Check that all players have destinations assigned
       let missingDestinations = false;
-      activeTeams.forEach(t => {
+      teamsSendingPlayers.forEach(t => {
         t.playersOut.forEach(p => {
           if (p.destination === undefined) {
             missingDestinations = true;
@@ -769,7 +775,7 @@
       let allWarnings = [];
       let invalidMessages = [];
       
-      activeTeams.forEach(t => {
+      teamsWithPlayers.forEach(t => {
         const result = validateTeamTrade(t);
         if (!result.valid) {
           allValid = false;
@@ -777,17 +783,6 @@
         }
         if (result.warnings) {
           allWarnings = allWarnings.concat(result.warnings);
-        }
-      });
-
-      // Also validate teams that are only receiving (not sending)
-      tradeTeams.forEach(t => {
-        if (t.teamName && t.playersIn.length > 0 && t.playersOut.length === 0) {
-          const result = validateTeamTrade(t);
-          if (!result.valid) {
-            allValid = false;
-            invalidMessages.push(`${t.teamName}: ${result.message}`);
-          }
         }
       });
 
