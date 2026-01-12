@@ -640,7 +640,7 @@
       if (!teamPlayer) return null;
       return {
         name: teamName,
-        status: teamPlayer.status,
+        status: teamPlayer.teamStatus,
         capSpace: teamPlayer.capSpace,
         apronRoom1st: teamPlayer.apronRoom1st,
         apronRoom2nd: teamPlayer.apronRoom2nd,
@@ -1142,14 +1142,15 @@
               .filter(row => row.PLAYER && row.PLAYER.trim())
               .filter(row => row.TEAM && row.TEAM.trim())
               .filter(row => {
-                const status = row['ST 25-26']?.trim() || '';
-                return !status.toLowerCase().includes('10-day');
+                const contractStatus = row['ST 25-26']?.trim() || '';
+                return !contractStatus.toLowerCase().includes('10-day');
               })
               .map(row => ({
                 player: row.PLAYER?.trim() || '',
                 team: row.TEAM?.trim() || '',
                 salary: parseSalary(row['2026']),
-                status: row['ST 25-26']?.trim() || '',
+                contractStatus: row['ST 25-26']?.trim() || '',
+                teamStatus: row['TEAM STATUS']?.trim() || '',
                 capSpace: parseSalary(row['Cap Space'] || row['H'] || 0),
                 globalRating: parseFloat(row['RAT 365'] || 0) || 0,
                 noTradeClause: (row['NO TRADE'] || '').toString().trim().toUpperCase() === 'YES',
