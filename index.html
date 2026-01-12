@@ -221,6 +221,15 @@
       background: var(--surface-hover);
       border-radius: 6px;
       font-size: 0.8125rem;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+    }
+
+    .player-chip-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
     }
 
     .player-chip-info {
@@ -254,6 +263,35 @@
 
     .player-chip-remove:hover {
       color: var(--red);
+    }
+
+    .player-destination {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      font-size: 0.6875rem;
+      color: var(--text-secondary);
+    }
+
+    .player-destination-label {
+      white-space: nowrap;
+    }
+
+    .player-destination-select {
+      flex: 1;
+      padding: 0.25rem 0.375rem;
+      font-size: 0.6875rem;
+      font-family: inherit;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .player-destination-select option {
+      background: var(--surface);
     }
 
     .player-chip.incoming {
@@ -685,40 +723,55 @@
 
     // Validate entire trade
     function validateTrade() {
-      // Need at least 2 teams
-      const activeTeams = tradeTeams.filter(t => t.teamName && (t.playersOut.length > 0 || t.playersIn.length > 0));
+      // Need at least 2 teams with players
+      const activeTeams = tradeTeams.filter(t => t.teamName && t.playersOut.length > 0);
       if (activeTeams.length < 2) {
-        return { valid: false, message: 'Add players to at least 2 teams', type: 'warning' };
+        return { valid: false, message: 'Add players from at least 2 teams', type: 'warning' };
       }
 
-      // Check that all outgoing players are received by someone
-      const allOut = [];
-      const allIn = [];
+      // Check that all players have destinations assigned
+      let missingDestinations = false;
       activeTeams.forEach(t => {
-        t.playersOut.forEach(p => allOut.push({ ...p, fromTeam: t.teamName }));
-        t.playersIn.forEach(p => allIn.push({ ...p, toTeam: t.teamName }));
+        t.playersOut.forEach(p => {
+          if (p.destination === undefined) {
+            missingDestinations = true;
+          }
+        });
       });
 
-      // Verify balance - every player sent out should be received by another team
-      if (allOut.length !== allIn.length) {
-        return { valid: false, message: 'Trade is not balanced - players must go to another team', type: 'invalid' };
+      if (missingDestinations) {
+        return { valid: false, message: 'Select destination team for all players', type: 'warning' };
       }
 
       // Validate each team's side
       let allValid = true;
       let allWarnings = [];
+      let invalidMessages = [];
+      
       activeTeams.forEach(t => {
         const result = validateTeamTrade(t);
         if (!result.valid) {
           allValid = false;
+          invalidMessages.push(`${t.teamName}: ${result.message}`);
         }
         if (result.warnings) {
           allWarnings = allWarnings.concat(result.warnings);
         }
       });
 
+      // Also validate teams that are only receiving (not sending)
+      tradeTeams.forEach(t => {
+        if (t.teamName && t.playersIn.length > 0 && t.playersOut.length === 0) {
+          const result = validateTeamTrade(t);
+          if (!result.valid) {
+            allValid = false;
+            invalidMessages.push(`${t.teamName}: ${result.message}`);
+          }
+        }
+      });
+
       if (!allValid) {
-        return { valid: false, message: 'One or more teams cannot complete this trade', type: 'invalid' };
+        return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
       }
 
       if (allWarnings.length > 0) {
@@ -728,30 +781,29 @@
       return { valid: true, message: 'All teams can complete this trade', type: 'valid' };
     }
 
-    // Distribute players - when a player is added to "out", they need to go "in" to another team
+    // Distribute players based on their assigned destinations
     function redistributePlayers() {
       // Clear all incoming players
       tradeTeams.forEach(t => t.playersIn = []);
 
-      // For each player being sent out, they go to... where?
-      // In a multi-team trade, we need to let user decide where each player goes
-      // For now, simple 2-team logic: players go to the other team
-      // For 3+ teams, we'll need a more complex UI
+      // For each player being sent out, add them to their destination team's incoming
+      tradeTeams.forEach((team, teamIndex) => {
+        team.playersOut.forEach(player => {
+          if (player.destination !== undefined && player.destination !== teamIndex) {
+            const destTeam = tradeTeams[player.destination];
+            if (destTeam) {
+              destTeam.playersIn.push(player);
+            }
+          }
+        });
+      });
+    }
 
-      const activeTeams = tradeTeams.filter(t => t.teamName && t.playersOut.length > 0);
-      
-      if (activeTeams.length === 2) {
-        // Simple swap
-        activeTeams[0].playersIn = [...activeTeams[1].playersOut];
-        activeTeams[1].playersIn = [...activeTeams[0].playersOut];
-      } else if (activeTeams.length > 2) {
-        // For now, rotate: Team 1 gets from Team 2, Team 2 gets from Team 3, etc.
-        // User can manually adjust by removing and re-adding
-        for (let i = 0; i < activeTeams.length; i++) {
-          const nextIndex = (i + 1) % activeTeams.length;
-          activeTeams[i].playersIn = [...activeTeams[nextIndex].playersOut];
-        }
-      }
+    // Get other active teams (for destination dropdown)
+    function getOtherActiveTeams(currentTeamIndex) {
+      return tradeTeams
+        .map((t, i) => ({ index: i, name: t.teamName }))
+        .filter(t => t.name && t.index !== currentTeamIndex);
     }
 
     // Render a single team card
@@ -770,6 +822,8 @@
       const availableTeams = getUniqueTeams().filter(t => 
         t === tradeTeam.teamName || !tradeTeams.some(tt => tt.teamName === t)
       );
+
+      const otherTeams = getOtherActiveTeams(index);
 
       return `
         <div class="team-card ${cardClass}" data-index="${index}">
@@ -800,15 +854,28 @@
               <div class="section-label">Sends Out</div>
               ${tradeTeam.playersOut.map((p, pIndex) => `
                 <div class="player-chip">
-                  <div class="player-chip-info">
-                    <div class="player-chip-name">
-                      ${p.player}
-                      ${p.noTradeClause ? '<span class="ntc-badge">NTC</span>' : ''}
-                      ${p.tradeAvailable ? '<span class="restriction-badge">!</span>' : ''}
+                  <div class="player-chip-row">
+                    <div class="player-chip-info">
+                      <div class="player-chip-name">
+                        ${p.player}
+                        ${p.noTradeClause ? '<span class="ntc-badge">NTC</span>' : ''}
+                        ${p.tradeAvailable ? '<span class="restriction-badge">!</span>' : ''}
+                      </div>
+                      <div class="player-chip-salary">${formatSalary(p.salary)}</div>
                     </div>
-                    <div class="player-chip-salary">${formatSalary(p.salary)}</div>
+                    <button class="player-chip-remove" data-team="${index}" data-player="${pIndex}">×</button>
                   </div>
-                  <button class="player-chip-remove" data-team="${index}" data-player="${pIndex}">×</button>
+                  ${otherTeams.length > 0 ? `
+                    <div class="player-destination">
+                      <span class="player-destination-label">→ To:</span>
+                      <select class="player-destination-select" data-team="${index}" data-player="${pIndex}">
+                        <option value="">Select team...</option>
+                        ${otherTeams.map(t => `
+                          <option value="${t.index}" ${p.destination === t.index ? 'selected' : ''}>${t.name}</option>
+                        `).join('')}
+                      </select>
+                    </div>
+                  ` : ''}
                 </div>
               `).join('')}
               
@@ -955,6 +1022,18 @@
         });
       });
 
+      // Player destination change
+      document.querySelectorAll('.player-destination-select').forEach(select => {
+        select.addEventListener('change', (e) => {
+          const teamIndex = parseInt(e.target.dataset.team);
+          const playerIndex = parseInt(e.target.dataset.player);
+          const destinationIndex = e.target.value ? parseInt(e.target.value) : undefined;
+          tradeTeams[teamIndex].playersOut[playerIndex].destination = destinationIndex;
+          redistributePlayers();
+          render();
+        });
+      });
+
       // Add team
       const addTeamCard = document.getElementById('addTeamCard');
       if (addTeamCard) {
@@ -1005,7 +1084,16 @@
               const playerName = item.dataset.player;
               const player = teamPlayers.find(p => p.player === playerName);
               if (player) {
-                tradeTeams[teamIndex].playersOut.push(player);
+                // Create a copy of the player with destination property
+                const playerWithDest = { ...player };
+                
+                // Auto-assign destination for 2-team trades
+                const otherTeams = getOtherActiveTeams(teamIndex);
+                if (otherTeams.length === 1) {
+                  playerWithDest.destination = otherTeams[0].index;
+                }
+                
+                tradeTeams[teamIndex].playersOut.push(playerWithDest);
                 redistributePlayers();
                 render();
               }
