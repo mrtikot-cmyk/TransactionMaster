@@ -371,10 +371,10 @@
     }
 
     .team-footer {
-      padding: 1rem;
-      border-top: 1px solid var(--border);
+      padding: 0.75rem;
+      margin-top: 0.5rem;
       background: var(--surface-hover);
-      border-radius: 0 0 12px 12px;
+      border-radius: 8px;
     }
 
     .salary-summary {
@@ -948,26 +948,6 @@
                   ` : ''}
                 </div>
               `).join('')}
-              
-              ${tradeTeam.teamName ? `
-                <div class="player-roster" data-team="${index}">
-                  ${getTeamPlayers(tradeTeam.teamName)
-                    .sort((a, b) => b.salary - a.salary)
-                    .map(p => {
-                      const isAdded = tradeTeam.playersOut.some(po => po.player === p.player);
-                      return `
-                        <div class="player-roster-item ${isAdded ? 'disabled' : ''}" data-team="${index}" data-player="${p.player}" ${isAdded ? 'data-disabled="true"' : ''}>
-                          <span class="player-roster-name">
-                            ${p.player}
-                            ${p.noTradeClause ? '<span class="ntc-badge">NTC</span>' : ''}
-                            ${p.tradeAvailable ? '<span class="restriction-badge">!</span>' : ''}
-                          </span>
-                          <span class="player-roster-salary">${formatSalary(p.salary)}</span>
-                        </div>
-                      `;
-                    }).join('')}
-                </div>
-              ` : ''}
             </div>
             
             ${tradeTeam.playersIn.length > 0 ? `
@@ -988,36 +968,57 @@
                 `).join('')}
               </div>
             ` : ''}
-          </div>
-          
-          ${tradeTeam.teamName && (tradeTeam.playersOut.length > 0 || tradeTeam.playersIn.length > 0) ? `
-            <div class="team-footer">
-              <div class="salary-summary">
-                <div class="salary-row">
-                  <span class="salary-label">Outgoing</span>
-                  <span class="salary-value">${formatSalary(outgoingSalary)}</span>
+            
+            ${tradeTeam.teamName && (tradeTeam.playersOut.length > 0 || tradeTeam.playersIn.length > 0) ? `
+              <div class="team-footer">
+                <div class="salary-summary">
+                  <div class="salary-row">
+                    <span class="salary-label">Outgoing</span>
+                    <span class="salary-value">${formatSalary(outgoingSalary)}</span>
+                  </div>
+                  <div class="salary-row">
+                    <span class="salary-label">Incoming</span>
+                    <span class="salary-value">${formatSalary(incomingSalary)}</span>
+                  </div>
+                  <div class="salary-row total">
+                    <span class="salary-label">Net</span>
+                    <span class="salary-value ${netSalary > 0 ? 'negative' : netSalary < 0 ? 'positive' : ''}">${netSalary > 0 ? '+' : ''}${formatSalary(netSalary)}</span>
+                  </div>
                 </div>
-                <div class="salary-row">
-                  <span class="salary-label">Incoming</span>
-                  <span class="salary-value">${formatSalary(incomingSalary)}</span>
-                </div>
-                <div class="salary-row total">
-                  <span class="salary-label">Net</span>
-                  <span class="salary-value ${netSalary > 0 ? 'negative' : netSalary < 0 ? 'positive' : ''}">${netSalary > 0 ? '+' : ''}${formatSalary(netSalary)}</span>
-                </div>
+                ${validation && !validation.valid ? `
+                  <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--red);">
+                    ⚠️ ${validation.message}
+                  </div>
+                ` : ''}
+                ${validation && validation.warnings && validation.warnings.length > 0 ? `
+                  <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--orange);">
+                    ⚠️ ${validation.warnings.join('; ')}
+                  </div>
+                ` : ''}
               </div>
-              ${validation && !validation.valid ? `
-                <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--red);">
-                  ⚠️ ${validation.message}
-                </div>
-              ` : ''}
-              ${validation && validation.warnings && validation.warnings.length > 0 ? `
-                <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--orange);">
-                  ⚠️ ${validation.warnings.join('; ')}
-                </div>
-              ` : ''}
-            </div>
-          ` : ''}
+            ` : ''}
+              
+            ${tradeTeam.teamName ? `
+              <div class="section-label" style="margin-top: 0.75rem;">Roster</div>
+              <div class="player-roster" data-team="${index}">
+                ${getTeamPlayers(tradeTeam.teamName)
+                  .sort((a, b) => b.salary - a.salary)
+                  .map(p => {
+                    const isAdded = tradeTeam.playersOut.some(po => po.player === p.player);
+                    return `
+                      <div class="player-roster-item ${isAdded ? 'disabled' : ''}" data-team="${index}" data-player="${p.player}" ${isAdded ? 'data-disabled="true"' : ''}>
+                        <span class="player-roster-name">
+                          ${p.player}
+                          ${p.noTradeClause ? '<span class="ntc-badge">NTC</span>' : ''}
+                          ${p.tradeAvailable ? '<span class="restriction-badge">!</span>' : ''}
+                        </span>
+                        <span class="player-roster-salary">${formatSalary(p.salary)}</span>
+                      </div>
+                    `;
+                  }).join('')}
+              </div>
+            ` : ''}
+          </div>
         </div>
       `;
     }
@@ -1074,6 +1075,20 @@
           tradeTeams[index].teamName = e.target.value;
           tradeTeams[index].playersOut = [];
           tradeTeams[index].playersIn = [];
+          
+          // Auto-assign destinations for players in other teams that don't have one yet
+          const otherTeamsWithPlayers = tradeTeams.filter((t, i) => i !== index && t.teamName && t.playersOut.length > 0);
+          if (e.target.value && otherTeamsWithPlayers.length > 0) {
+            otherTeamsWithPlayers.forEach(team => {
+              team.playersOut.forEach(player => {
+                if (player.destination === undefined) {
+                  // Assign to this newly selected team
+                  player.destination = index;
+                }
+              });
+            });
+          }
+          
           redistributePlayers();
           render();
         });
