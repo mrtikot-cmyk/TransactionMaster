@@ -428,6 +428,15 @@
       border: 1px solid var(--green);
     }
 
+    .trade-status.pending {
+      background: var(--green-dim);
+      border: 1px solid var(--green);
+    }
+
+    .trade-status.pending .trade-status-message {
+      color: var(--orange);
+    }
+
     .trade-status.invalid {
       background: var(--red-dim);
       border: 1px solid var(--red);
@@ -845,7 +854,15 @@
         return { valid: false, message: invalidMessages.join(' | '), type: 'invalid' };
       }
 
+      // Check if warnings are only date-related or NTC (trade is valid but pending approval/date)
       if (allWarnings.length > 0) {
+        const onlyPendingWarnings = allWarnings.every(w => 
+          w.includes('available') || w.includes('no-trade clause')
+        ) && !allWarnings.some(w => w.includes('cannot be traded before deadline'));
+        
+        if (onlyPendingWarnings) {
+          return { valid: true, message: allWarnings.join('; '), type: 'pending' };
+        }
         return { valid: true, message: allWarnings.join('; '), type: 'warning' };
       }
 
@@ -1051,10 +1068,12 @@
       
       document.getElementById('tradeStatusIcon').textContent = 
         validation.type === 'valid' ? '✓' : 
+        validation.type === 'pending' ? '✓' :
         validation.type === 'warning' ? '⚠️' : '✗';
       
       document.getElementById('tradeStatusTitle').textContent = 
         validation.type === 'valid' ? 'Trade is valid' :
+        validation.type === 'pending' ? 'Trade is valid (pending approval)' :
         validation.type === 'warning' ? 'Trade has warnings' : 'Trade is invalid';
       
       document.getElementById('tradeStatusMessage').textContent = validation.message;
