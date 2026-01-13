@@ -1169,85 +1169,145 @@
     // Generate a random valid trade
     function generateRandomTrade() {
       const MIN_COMBINED_SALARY = 10000000; // $10M minimum
-      const MAX_ATTEMPTS = 100;
+      const MAX_ATTEMPTS = 150;
       
-      // Get tradeable players (exclude two-way, must have team)
+      // Get tradeable players (exclude two-way, 10-day, must have team)
       const tradeablePlayers = players.filter(p => 
         p.team && 
         p.contractStatus?.toUpperCase() !== 'TWO-WAY' &&
+        !p.contractStatus?.toUpperCase().includes('10-DAY') &&
         p.tradeAvailable?.toLowerCase() !== 'not available' &&
         p.salary >= 1000000 // At least $1M salary
       );
       
+      // Randomly decide 2-team or 3-team trade (40% chance for 3-team)
+      const isThreeTeam = Math.random() < 0.4;
+      
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        // Pick a random player to start
-        const player1 = tradeablePlayers[Math.floor(Math.random() * tradeablePlayers.length)];
-        const team1Info = getTeamInfo(player1.team);
-        
-        // Find potential trade partners from other teams
-        const otherTeamPlayers = tradeablePlayers.filter(p => p.team !== player1.team);
-        
-        // Shuffle and try to find a valid match
-        const shuffled = [...otherTeamPlayers].sort(() => Math.random() - 0.5);
-        
-        for (const player2 of shuffled) {
-          const team2Info = getTeamInfo(player2.team);
+        if (isThreeTeam) {
+          // THREE-TEAM TRADE
+          // Pick 3 random teams
+          const allTeams = [...new Set(tradeablePlayers.map(p => p.team))];
+          if (allTeams.length < 3) continue;
+          
+          const shuffledTeams = [...allTeams].sort(() => Math.random() - 0.5);
+          const team1Name = shuffledTeams[0];
+          const team2Name = shuffledTeams[1];
+          const team3Name = shuffledTeams[2];
+          
+          // Get players from each team
+          const team1Players = tradeablePlayers.filter(p => p.team === team1Name);
+          const team2Players = tradeablePlayers.filter(p => p.team === team2Name);
+          const team3Players = tradeablePlayers.filter(p => p.team === team3Name);
+          
+          if (team1Players.length === 0 || team2Players.length === 0 || team3Players.length === 0) continue;
+          
+          // Pick random player from each team
+          const player1 = team1Players[Math.floor(Math.random() * team1Players.length)];
+          const player2 = team2Players[Math.floor(Math.random() * team2Players.length)];
+          const player3 = team3Players[Math.floor(Math.random() * team3Players.length)];
           
           // Check minimum combined salary
-          if (player1.salary + player2.salary < MIN_COMBINED_SALARY) continue;
+          if (player1.salary + player2.salary + player3.salary < MIN_COMBINED_SALARY) continue;
           
-          // Create test trade
+          // Create circular trade: Team1 -> Team2 -> Team3 -> Team1
           const testTrade = [
             { 
-              teamName: player1.team, 
+              teamName: team1Name, 
               playersOut: [{ ...player1, destination: 1 }], 
-              playersIn: [player2] 
+              playersIn: [player3] 
             },
             { 
-              teamName: player2.team, 
-              playersOut: [{ ...player2, destination: 0 }], 
+              teamName: team2Name, 
+              playersOut: [{ ...player2, destination: 2 }], 
               playersIn: [player1] 
+            },
+            { 
+              teamName: team3Name, 
+              playersOut: [{ ...player3, destination: 0 }], 
+              playersIn: [player2] 
             }
           ];
           
-          // Validate both sides
+          // Validate all three sides
           const team1Valid = validateTeamTrade(testTrade[0]);
           const team2Valid = validateTeamTrade(testTrade[1]);
+          const team3Valid = validateTeamTrade(testTrade[2]);
           
-          if (team1Valid.valid && team2Valid.valid) {
-            // Maybe add a third player (50% chance)
-            if (Math.random() > 0.5) {
-              // Try to add another player to one side
-              const sideToAdd = Math.random() > 0.5 ? 0 : 1;
-              const teamToAddFrom = testTrade[sideToAdd].teamName;
-              const additionalPlayers = tradeablePlayers.filter(p => 
-                p.team === teamToAddFrom && 
-                p.player !== testTrade[sideToAdd].playersOut[0].player &&
-                p.salary < 15000000 // Keep additional player smaller
-              );
-              
-              if (additionalPlayers.length > 0) {
-                const additionalPlayer = additionalPlayers[Math.floor(Math.random() * additionalPlayers.length)];
-                const otherSide = sideToAdd === 0 ? 1 : 0;
+          if (team1Valid.valid && team2Valid.valid && team3Valid.valid) {
+            return testTrade;
+          }
+        } else {
+          // TWO-TEAM TRADE
+          // Pick a random player to start
+          const player1 = tradeablePlayers[Math.floor(Math.random() * tradeablePlayers.length)];
+          const team1Info = getTeamInfo(player1.team);
+          
+          // Find potential trade partners from other teams
+          const otherTeamPlayers = tradeablePlayers.filter(p => p.team !== player1.team);
+          
+          // Shuffle and try to find a valid match
+          const shuffled = [...otherTeamPlayers].sort(() => Math.random() - 0.5);
+          
+          for (const player2 of shuffled) {
+            const team2Info = getTeamInfo(player2.team);
+            
+            // Check minimum combined salary
+            if (player1.salary + player2.salary < MIN_COMBINED_SALARY) continue;
+            
+            // Create test trade
+            const testTrade = [
+              { 
+                teamName: player1.team, 
+                playersOut: [{ ...player1, destination: 1 }], 
+                playersIn: [player2] 
+              },
+              { 
+                teamName: player2.team, 
+                playersOut: [{ ...player2, destination: 0 }], 
+                playersIn: [player1] 
+              }
+            ];
+            
+            // Validate both sides
+            const team1Valid = validateTeamTrade(testTrade[0]);
+            const team2Valid = validateTeamTrade(testTrade[1]);
+            
+            if (team1Valid.valid && team2Valid.valid) {
+              // Maybe add a third player (50% chance)
+              if (Math.random() > 0.5) {
+                // Try to add another player to one side
+                const sideToAdd = Math.random() > 0.5 ? 0 : 1;
+                const teamToAddFrom = testTrade[sideToAdd].teamName;
+                const additionalPlayers = tradeablePlayers.filter(p => 
+                  p.team === teamToAddFrom && 
+                  p.player !== testTrade[sideToAdd].playersOut[0].player &&
+                  p.salary < 15000000 // Keep additional player smaller
+                );
                 
-                // Add player and test
-                testTrade[sideToAdd].playersOut.push({ ...additionalPlayer, destination: otherSide });
-                testTrade[otherSide].playersIn.push(additionalPlayer);
-                
-                // Re-validate
-                const retest1 = validateTeamTrade(testTrade[0]);
-                const retest2 = validateTeamTrade(testTrade[1]);
-                
-                if (!retest1.valid || !retest2.valid) {
-                  // Remove the additional player if it breaks the trade
-                  testTrade[sideToAdd].playersOut.pop();
-                  testTrade[otherSide].playersIn.pop();
+                if (additionalPlayers.length > 0) {
+                  const additionalPlayer = additionalPlayers[Math.floor(Math.random() * additionalPlayers.length)];
+                  const otherSide = sideToAdd === 0 ? 1 : 0;
+                  
+                  // Add player and test
+                  testTrade[sideToAdd].playersOut.push({ ...additionalPlayer, destination: otherSide });
+                  testTrade[otherSide].playersIn.push(additionalPlayer);
+                  
+                  // Re-validate
+                  const retest1 = validateTeamTrade(testTrade[0]);
+                  const retest2 = validateTeamTrade(testTrade[1]);
+                  
+                  if (!retest1.valid || !retest2.valid) {
+                    // Remove the additional player if it breaks the trade
+                    testTrade[sideToAdd].playersOut.pop();
+                    testTrade[otherSide].playersIn.pop();
+                  }
                 }
               }
+              
+              // Found a valid trade!
+              return testTrade;
             }
-            
-            // Found a valid trade!
-            return testTrade;
           }
         }
       }
