@@ -624,7 +624,7 @@
       font-weight: 600;
     }
 
-    .ntc-badge, .restriction-badge, .na-badge, .pp-badge {
+    .ntc-badge, .restriction-badge, .na-badge, .pp-badge, .min-badge {
       font-size: 0.5625rem;
       padding: 0.125rem 0.3rem;
       border-radius: 3px;
@@ -650,6 +650,11 @@
     .pp-badge {
       background: rgba(236, 72, 153, 0.15);
       color: #ec4899;
+    }
+
+    .min-badge {
+      background: rgba(34, 197, 94, 0.15);
+      color: #22c55e;
     }
 
     .loading {
@@ -809,9 +814,12 @@
       return tpes;
     }
 
+    // League minimum salary for 2025-26 season
+    const LEAGUE_MINIMUM = 1157153;
+
     // Get trade salary (Two-Way contracts count as $0)
     // For outgoing: use regular salary
-    // For incoming: use poison pill value if present, otherwise regular salary
+    // For incoming: use poison pill value if present, or league minimum if minimum contract, otherwise regular salary
     function getOutgoingSalary(player) {
       if (player.contractStatus && player.contractStatus.toUpperCase().includes('TWO-WAY')) {
         return 0;
@@ -823,8 +831,15 @@
       if (player.contractStatus && player.contractStatus.toUpperCase().includes('TWO-WAY')) {
         return 0;
       }
-      // Use poison pill value if present, otherwise regular salary
-      return player.poisonPill > 0 ? player.poisonPill : player.salary;
+      // Poison pill takes priority
+      if (player.poisonPill > 0) {
+        return player.poisonPill;
+      }
+      // Minimum salary players count as league minimum for receiving team
+      if (player.isMinimum) {
+        return LEAGUE_MINIMUM;
+      }
+      return player.salary;
     }
 
     // Legacy function for backwards compatibility
@@ -1109,9 +1124,10 @@
                         ${p.noTradeClause ? '<span class="ntc-badge">NTC</span>' : ''}
                         ${p.notAggregated ? '<span class="na-badge">NA</span>' : ''}
                         ${p.poisonPill > 0 ? '<span class="pp-badge">PP</span>' : ''}
+                        ${p.isMinimum ? '<span class="min-badge">MIN</span>' : ''}
                         ${p.tradeAvailable ? '<span class="restriction-badge">!</span>' : ''}
                       </div>
-                      <div class="player-chip-salary">${formatSalary(p.salary)}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}</div>
+                      <div class="player-chip-salary">${formatSalary(p.salary)}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">→ ${formatSalary(p.poisonPill)}</span>` : ''}${p.isMinimum && !p.poisonPill ? ` <span style="color: #22c55e; font-size: 0.7em;">→ ${formatSalary(LEAGUE_MINIMUM)}</span>` : ''}</div>
                     </div>
                     <button class="player-chip-remove" data-team="${index}" data-player="${pIndex}">×</button>
                   </div>
@@ -1138,17 +1154,22 @@
               </div>
               
               <div class="players-in">
-                ${tradeTeam.playersIn.map(p => `
-                  <div class="player-chip incoming">
-                    <div class="player-chip-info">
-                      <div class="player-chip-name">
-                        ${p.player}
-                        ${p.poisonPill > 0 ? '<span class="pp-badge">PP</span>' : ''}
+                ${tradeTeam.playersIn.map(p => {
+                  const incomingValue = getIncomingSalary(p);
+                  const showAdjusted = p.poisonPill > 0 || p.isMinimum;
+                  return `
+                    <div class="player-chip incoming">
+                      <div class="player-chip-info">
+                        <div class="player-chip-name">
+                          ${p.player}
+                          ${p.poisonPill > 0 ? '<span class="pp-badge">PP</span>' : ''}
+                          ${p.isMinimum ? '<span class="min-badge">MIN</span>' : ''}
+                        </div>
+                        <div class="player-chip-salary">${formatSalary(incomingValue)}${showAdjusted ? ` <span style="color: ${p.isMinimum ? '#22c55e' : '#ec4899'}; font-size: 0.7em;">(actual ${formatSalary(p.salary)})</span>` : ''}</div>
                       </div>
-                      <div class="player-chip-salary">${formatSalary(p.poisonPill > 0 ? p.poisonPill : p.salary)}${p.poisonPill > 0 ? ` <span style="color: #ec4899; font-size: 0.7em;">(was ${formatSalary(p.salary)})</span>` : ''}</div>
                     </div>
-                  </div>
-                `).join('')}
+                  `;
+                }).join('')}
               </div>
             ` : ''}
             
@@ -1233,6 +1254,7 @@
                           ${p.noTradeClause ? '<span class="ntc-badge">NTC</span>' : ''}
                           ${p.notAggregated ? '<span class="na-badge">NA</span>' : ''}
                           ${p.poisonPill > 0 ? '<span class="pp-badge">PP</span>' : ''}
+                          ${p.isMinimum ? '<span class="min-badge">MIN</span>' : ''}
                           ${p.tradeAvailable ? '<span class="restriction-badge">!</span>' : ''}
                         </span>
                         <span class="player-roster-salary">${formatSalary(p.salary)}</span>
@@ -1659,6 +1681,7 @@
                 return !contractStatus.toLowerCase().includes('10-day');
               })
               .map(row => {
+                const otherNotes = row['OTHER NOTES']?.trim() || '';
                 const player = {
                   player: row.PLAYER?.trim() || '',
                   team: row.TEAM?.trim() || '',
@@ -1670,6 +1693,8 @@
                   noTradeClause: (row['NO TRADE'] || '').toString().trim().toUpperCase() === 'YES',
                   notAggregated: (row['NOT AGGREGATED'] || '').toString().trim().toUpperCase() === 'NO',
                   poisonPill: parseSalary(row['POISON PILL'] || 0),
+                  otherNotes: otherNotes,
+                  isMinimum: otherNotes.toLowerCase().includes('minimum'),
                   apronRoom1st: parseSalary(row['1st APRON'] || 0),
                   apronRoom2nd: parseSalary(row['2nd APRON'] || 0),
                   isHardcap1st: (row['HARD CAP 1st?'] || '').toString().trim().toLowerCase().includes('hc'),
