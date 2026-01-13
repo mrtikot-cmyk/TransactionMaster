@@ -856,13 +856,31 @@
 
       // Check if warnings are only date-related or NTC (trade is valid but pending approval/date)
       if (allWarnings.length > 0) {
-        const onlyPendingWarnings = allWarnings.every(w => 
-          w.includes('available') || w.includes('no-trade clause')
-        ) && !allWarnings.some(w => w.includes('cannot be traded before deadline'));
+        const hasDateWarnings = allWarnings.some(w => w.includes('available') && !w.includes('no-trade'));
+        const hasNTCWarnings = allWarnings.some(w => w.includes('no-trade clause'));
+        const hasBlockingWarnings = allWarnings.some(w => w.includes('cannot be traded before deadline'));
         
-        if (onlyPendingWarnings) {
-          return { valid: true, message: allWarnings.join('; '), type: 'pending' };
+        if (hasBlockingWarnings) {
+          return { valid: true, message: allWarnings.join('; '), type: 'warning' };
         }
+        
+        if (hasDateWarnings && !hasNTCWarnings) {
+          // Extract the date from the warning message
+          const dateMatch = allWarnings.find(w => w.includes('available'))?.match(/available\s+(.+)/);
+          const date = dateMatch ? dateMatch[1] : 'a future date';
+          return { valid: true, message: allWarnings.join('; '), type: 'pending-date', pendingDate: date };
+        }
+        
+        if (hasNTCWarnings && !hasDateWarnings) {
+          return { valid: true, message: allWarnings.join('; '), type: 'pending-ntc' };
+        }
+        
+        if (hasNTCWarnings && hasDateWarnings) {
+          const dateMatch = allWarnings.find(w => w.includes('available'))?.match(/available\s+(.+)/);
+          const date = dateMatch ? dateMatch[1] : 'a future date';
+          return { valid: true, message: allWarnings.join('; '), type: 'pending-both', pendingDate: date };
+        }
+        
         return { valid: true, message: allWarnings.join('; '), type: 'warning' };
       }
 
@@ -1064,17 +1082,32 @@
       }
 
       tradeStatus.style.display = 'flex';
-      tradeStatus.className = 'trade-status ' + validation.type;
+      tradeStatus.className = 'trade-status ' + (validation.type.startsWith('pending') ? 'pending' : validation.type);
       
       document.getElementById('tradeStatusIcon').textContent = 
         validation.type === 'valid' ? '✓' : 
-        validation.type === 'pending' ? '✓' :
+        validation.type.startsWith('pending') ? '✓' :
         validation.type === 'warning' ? '⚠️' : '✗';
       
-      document.getElementById('tradeStatusTitle').textContent = 
-        validation.type === 'valid' ? 'Trade is valid' :
-        validation.type === 'pending' ? 'Trade is valid (pending approval)' :
-        validation.type === 'warning' ? 'Trade has warnings' : 'Trade is invalid';
+      let statusTitle;
+      if (validation.type === 'valid') {
+        statusTitle = 'Trade is valid';
+      } else if (validation.type === 'pending-date') {
+        statusTitle = `Trade will be valid on ${validation.pendingDate}`;
+      } else if (validation.type === 'pending-ntc') {
+        const ntcCount = (validation.message.match(/no-trade clause/g) || []).length;
+        statusTitle = ntcCount > 1 ? 'Trade is valid (pending players approval)' : 'Trade is valid (pending player approval)';
+      } else if (validation.type === 'pending-both') {
+        const ntcCount = (validation.message.match(/no-trade clause/g) || []).length;
+        const approvalText = ntcCount > 1 ? 'pending players approval' : 'pending player approval';
+        statusTitle = `Trade will be valid on ${validation.pendingDate} (${approvalText})`;
+      } else if (validation.type === 'warning') {
+        statusTitle = 'Trade has warnings';
+      } else {
+        statusTitle = 'Trade is invalid';
+      }
+      
+      document.getElementById('tradeStatusTitle').textContent = statusTitle;
       
       document.getElementById('tradeStatusMessage').textContent = validation.message;
     }
